@@ -9,14 +9,14 @@ from .builder import build_payload
 from .config import load_config
 
 
-ENGINE_ROOT = Path(__file__).resolve().parents[2]
+ASSETS_ROOT = Path(__file__).resolve().parent / "assets"
 
 
 def render_ui(config) -> None:
     if not config.ui.get("enabled"):
         return
     output_dir = (config.root / config.output).parent
-    assets = ENGINE_ROOT / "assets"
+    assets = ASSETS_ROOT
     replacements = {
         "{{HTML_TITLE}}": config.ui.get("html_title", config.ui.get("title", "Wiki")),
         "{{SITE_TITLE}}": config.ui.get("title", "Wiki"),
@@ -62,7 +62,7 @@ def render_ui(config) -> None:
     (output_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     core_assets = ["./", "./index.html", "./style.css", "./app.js", "./app-data.js", "./vis-network.min.js", "./manifest.json", "./" + config.ui.get("logo_name", "logo.png")]
     core_assets.extend("./" + Path(item).name for item in config.ui.get("static_assets", []))
-    sw = (ENGINE_ROOT / "assets" / "sw.js").read_text(encoding="utf-8")
+    sw = (assets / "sw.js").read_text(encoding="utf-8")
     sw = sw.replace("{{CACHE_NAME}}", config.ui.get("cache_name", "wiki-site-v1"))
     sw = sw.replace("{{CORE_ASSETS}}", json.dumps(list(dict.fromkeys(core_assets)), ensure_ascii=False, indent=2))
     (output_dir / "sw.js").write_text(sw, encoding="utf-8")
