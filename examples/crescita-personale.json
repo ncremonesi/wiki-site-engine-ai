@@ -1,0 +1,47 @@
+{
+  "root": "G:/Il mio Drive/crescita-personale-ai",
+  "source_dirs": ["wiki/sintesi", "wiki/concetti", "wiki/fonti"],
+  "output": "C:/tmp/wiki-site-engine-crescita-site/app-data.js",
+  "data_variable": "SITE_DATA",
+  "category_from_parent": true,
+  "updated_field": "data_ultimo_aggiornamento",
+  "field_map": {
+    "tags": "tags",
+    "created": "data_creazione",
+    "percorsoTitolo": "percorso_titolo",
+    "percorsoTeaser": "percorso_teaser",
+    "video": "video"
+  },
+  "paths": {
+    "category": "sintesi",
+    "title_field": "percorso_titolo",
+    "teaser_field": "percorso_teaser"
+  },
+  "ui": {
+    "enabled": true,
+    "html_title": "Crescita personale - Wiki",
+    "title": "Crescita personale",
+    "subtitle": "Percorsi, concetti, fonti",
+    "theme_color": "#0f0e13",
+    "logo_path": "output/site/logo.png",
+    "logo_name": "logo.png"
+    ,"cache_name": "crescita-personale-engine-pilot-v1",
+    "static_assets": [
+      "output/site/favicon.png",
+      "output/site/apple-touch-icon.png",
+      "output/site/icon-192.png",
+      "output/site/icon-512.png",
+      "output/site/icon-192-maskable.png",
+      "output/site/icon-512-maskable.png"
+    ],
+    "icons": [
+      {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+      {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+      {"src": "icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable"},
+      {"src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+    ]
+  },
+  "validation": {
+    "required": ["data_creazione", "data_ultimo_aggiornamento"]
+  }
+}

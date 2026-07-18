@@ -1,0 +1,54 @@
+{
+  "root": "C:/Users/ncremonesi/OneDrive - Comune di Cassano d'Adda/assistente-ai",
+  "source_dirs": ["progetti-e-casi", "persone", "attivita", "decisioni", "giornaliero"],
+  "output": "C:/Users/ncremonesi/OneDrive - Comune di Cassano d'Adda/assistente-ai/.engine-check/app-data.js",
+  "data_variable": "ED_DATA",
+  "category_field": "tipo",
+  "title_field": "titolo",
+  "updated_field": "aggiornato",
+  "link_fields": ["progetto"],
+  "list_fields": ["origine"],
+  "file_fields": ["origine"],
+  "field_map": {
+    "area": "area",
+    "stato": "stato",
+    "progetto": "progetto",
+    "scadenza": "scadenza",
+    "tags": "tags",
+    "origine": "origine"
+  },
+  "facets": {
+    "areas": {
+      "field": "area",
+      "order": ["comunicazione", "elettorale", "organizzazione", "informatica", "stato-civile", "personale"],
+      "labels_key": "areaLabels",
+      "labels": {
+        "comunicazione": "Comunicazione",
+        "elettorale": "Elettorale",
+        "organizzazione": "Organizzazione",
+        "informatica": "Informatica",
+        "stato-civile": "Stato civile",
+        "personale": "Personale"
+      },
+      "counts_key": "areaCounts"
+    },
+    "statuses": {
+      "field": "stato",
+      "counts_key": "stateCounts"
+    }
+  },
+  "static_data": {
+    "categories": ["progetto-caso", "risorsa", "persona", "attivita", "decisione", "giornaliero"],
+    "categoryLabels": {
+      "progetto-caso": "Progetto/Caso",
+      "risorsa": "Risorsa",
+      "persona": "Persona",
+      "attivita": "Attività",
+      "decisione": "Decisione",
+      "giornaliero": "Giornaliero"
+    }
+  },
+  "validation": {
+    "required": ["tipo", "aggiornato"]
+  }
+}
