@@ -695,7 +695,6 @@
       breadcrumb +
       "<h2>" + escapeHtml(page.title) + "</h2>" +
       '<div class="meta-row">' + page.incoming + " entrate · " + page.outgoing + " uscite</div>" +
-      '<div class="meta-row">' + escapeHtml(page.path) + "</div>" +
       (tags ? '<div class="meta-row">' + tags + "</div>" : "");
     const videoBtnHtml = page.video
       ? '<a class="panel-video-btn" href="' + escapeHtml(page.video) + '" target="_blank" rel="noopener">&#9654; Guarda video</a>'
@@ -1248,17 +1247,26 @@
     "che", "chi", "non",
   ]);
 
+  // Italian words agree in gender/number ("smarrita" vs "smarrito" vs
+  // "smarrimento") - stripping the last 2 chars of a long-enough token and
+  // matching on that stem catches the shared root without a full stemmer
+  function tokenStem(t) {
+    return t.length >= 6 ? t.slice(0, t.length - 2) : t;
+  }
+  function tokenMatches(hay, token) {
+    return hay.includes(token) || hay.includes(tokenStem(token));
+  }
   const PROXIMITY_WINDOW = 120;
   function proximityMatch(textLower, tokens) {
     if (!tokens.length) return -1;
-    const anchor = tokens[0];
-    let idx = textLower.indexOf(anchor);
+    const anchorKey = tokenStem(tokens[0]);
+    let idx = textLower.indexOf(anchorKey);
     while (idx !== -1) {
       const start = Math.max(0, idx - PROXIMITY_WINDOW);
-      const end = Math.min(textLower.length, idx + anchor.length + PROXIMITY_WINDOW);
+      const end = Math.min(textLower.length, idx + anchorKey.length + PROXIMITY_WINDOW);
       const slice = textLower.slice(start, end);
-      if (tokens.every((t) => slice.includes(t))) return idx;
-      idx = textLower.indexOf(anchor, idx + 1);
+      if (tokens.every((t) => tokenMatches(slice, t))) return idx;
+      idx = textLower.indexOf(anchorKey, idx + 1);
     }
     return -1;
   }
@@ -1277,7 +1285,7 @@
     const nodeUpdates = [];
     DATA.pages.forEach((p) => {
       const hay = (p.title + " " + (p.tags || []).join(" ") + " " + p.category).toLowerCase();
-      let textMatch = !q || qTokens.every((t) => hay.includes(t));
+      let textMatch = !q || qTokens.every((t) => tokenMatches(hay, t));
       if (!textMatch && q && searchBody) {
         const plain = plainTextOf(p);
         const plainLower = plain.toLowerCase();
@@ -1341,7 +1349,21 @@
 
     let suggestionsHtml = "";
     if (q && visible.length === 0) {
-      const suggestions = suggestFor(searchInput.value.trim());
+      let suggestions = suggestFor(searchInput.value.trim());
+      // vocab suggestions only look at titles/tags - if the query concept lives
+      // only in a page's body (e.g. "smarrita" only appears in running text),
+      // fall back to a stem-tolerant scan of the body text itself
+      if (!suggestions.length) {
+        const seenTitles = new Set();
+        for (const p of DATA.pages) {
+          const plainLower = plainTextOf(p).toLowerCase();
+          if (qTokens.some((t) => tokenMatches(plainLower, t)) && !seenTitles.has(p.title)) {
+            seenTitles.add(p.title);
+            suggestions.push(p.title);
+            if (suggestions.length >= 5) break;
+          }
+        }
+      }
       suggestionsHtml =
         '<div class="search-suggestions">Nessun risultato per &laquo;' + escapeHtml(searchInput.value.trim()) + '&raquo;.' +
         (suggestions.length
@@ -1352,9 +1374,22 @@
         "</div>";
     }
 
-    listResults.innerHTML =
-      suggestionsHtml +
-      groupNames.map((cat) => renderGroup(cat, cat, groups[cat].slice().sort((a, b) => a.title.localeCompare(b.title)), pageItem)).join("");
+    const cardsHtml = [];
+
+    groupNames.forEach((cat) => {
+      cardsHtml.push(renderGroup(cat, cat, groups[cat].slice().sort((a, b) => a.title.localeCompare(b.title)), pageItem));
+    });
+
+    const CARD_MIN_WIDTH = 340;
+    const CARD_GAP = 14;
+    const numCols = window.matchMedia("(max-width: 760px)").matches
+      ? 1
+      : Math.max(1, Math.floor((listResults.clientWidth + CARD_GAP) / (CARD_MIN_WIDTH + CARD_GAP)) || 1);
+    const columns = Array.from({ length: numCols }, () => []);
+    cardsHtml.forEach((html, i) => columns[i % numCols].push(html));
+    const columnsHtml = columns.map((col) => '<div class="results-col">' + col.join("") + "</div>").join("");
+
+    listResults.innerHTML = suggestionsHtml + columnsHtml;
   }
 
   function updateFacetCounts(categoryFacetCounts) {
@@ -1420,6 +1455,14 @@
   listToggleBtn.addEventListener("click", () => {
     const isOpen = listPanelEl.classList.toggle("list-open");
     setListToggleIcon(isOpen);
+    if (isOpen) applyFilters();
+    if (!isOpen && graphReady) {
+      requestAnimationFrame(() => {
+        applyLayoutForContainer();
+        network.fit({ animation: false });
+        basePositions = network.getPositions();
+      });
+    }
   });
 
   // --- stats ---
@@ -1522,12 +1565,23 @@
   relocateLegend();
   mobileMq.addEventListener("change", relocateLegend);
 
-  if (mobileMq.matches) {
-    listPanelEl.classList.add("list-open");
-    setListToggleIcon(true);
-  }
+  // Start from the searchable list on every viewport; the graph remains
+  // available as a secondary exploration view.
+  listPanelEl.classList.add("list-open");
+  setListToggleIcon(true);
 
+  // first paint - runs after filters exist so it can also seed facet counts.
   applyFilters();
+
+
+  let resizeRaf = null;
+  window.addEventListener("resize", () => {
+    if (resizeRaf) return;
+    resizeRaf = requestAnimationFrame(() => {
+      resizeRaf = null;
+      applyFilters();
+    });
+  });
 
   document.getElementById("brand-home").addEventListener("click", () => {
     if (!panelEl.classList.contains("hidden")) closePanel();
@@ -1539,9 +1593,9 @@
     legendEl.querySelectorAll(".legend-row.active").forEach((r) => r.classList.remove("active"));
     categoryFilterEl.querySelectorAll(".cat-chip.active").forEach((c) => c.classList.remove("active"));
     Object.keys(groupOpenState).forEach((cat) => (groupOpenState[cat] = false));
+    listPanelEl.classList.add("list-open");
+    setListToggleIcon(true);
     applyFilters();
-    listPanelEl.classList.remove("list-open");
-    setListToggleIcon(false);
   });
 
   // --- keyboard navigation of the graph ---
