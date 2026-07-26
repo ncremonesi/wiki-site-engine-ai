@@ -1188,6 +1188,9 @@
     const scored = [];
     suggestVocab.forEach((text) => {
       const nt = normalize(text);
+      // substring match catches queries buried inside a compound word (e.g. "settanta"
+      // inside "ultrasettantenni"), which edit distance alone would score as too far
+      if (nq.length >= 4 && nt.includes(nq)) { scored.push({ text, dist: 0 }); return; }
       let best = levenshtein(nq, nt);
       nt.split(/\s+/).forEach((w) => { const d = levenshtein(nq, w); if (d < best) best = d; });
       if (best <= maxDist && best > 0) scored.push({ text, dist: best });
