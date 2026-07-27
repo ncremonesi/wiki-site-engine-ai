@@ -858,6 +858,77 @@
     mermaid.run({ nodes: Array.from(nodes) }).catch((err) => console.error("mermaid render failed", err));
   }
 
+  // --- video links: play inline instead of leaving the site, without giving up the
+  // option to pop the real page out - plain left-clicks open an embed modal; a
+  // ctrl/cmd/middle-click (or the "Apri esternamente" link inside the modal) still
+  // follows the real href like before
+  function videoEmbedUrl(url) {
+    let u;
+    try {
+      u = new URL(url);
+    } catch (e) {
+      return null;
+    }
+    const host = u.hostname.replace(/^www\.|^m\./, "");
+    if (host === "youtube.com") {
+      let id = u.searchParams.get("v");
+      if (!id) {
+        const m = u.pathname.match(/\/(embed|shorts)\/([^/?]+)/);
+        if (m) id = m[2];
+      }
+      return id ? "https://www.youtube.com/embed/" + id + "?rel=0" : null;
+    }
+    if (host === "youtu.be") {
+      const id = u.pathname.replace(/^\//, "").split("/")[0];
+      return id ? "https://www.youtube.com/embed/" + id + "?rel=0" : null;
+    }
+    if (host === "drive.google.com") {
+      const m = u.pathname.match(/\/file\/d\/([^/]+)/);
+      return m ? "https://drive.google.com/file/d/" + m[1] + "/preview" : null;
+    }
+    return null;
+  }
+
+  const videoModal = document.getElementById("video-modal");
+  const videoModalIframe = document.getElementById("video-modal-iframe");
+  const videoModalExternal = document.getElementById("video-modal-external");
+
+  function closeVideoModal() {
+    videoModal.classList.add("hidden");
+    videoModalIframe.src = "about:blank"; // stop playback
+  }
+
+  function openVideoModal(url) {
+    const embed = videoEmbedUrl(url);
+    if (!embed) {
+      window.open(url, "_blank", "noopener");
+      return;
+    }
+    videoModalExternal.href = url;
+    videoModalIframe.src = embed;
+    videoModal.classList.remove("hidden");
+  }
+
+  function isPlainLeftClick(e) {
+    return e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+  }
+
+  if (videoModal) {
+    document.getElementById("video-modal-close").addEventListener("click", closeVideoModal);
+    videoModal.addEventListener("click", (e) => {
+      if (e.target === videoModal) closeVideoModal();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !videoModal.classList.contains("hidden")) closeVideoModal();
+    });
+    document.addEventListener("click", (e) => {
+      const a = e.target.closest("a.panel-video-btn, a.video-link");
+      if (!a || !isPlainLeftClick(e)) return;
+      e.preventDefault();
+      openVideoModal(a.href);
+    });
+  }
+
   // "Vedi anche" -> clickable card grid
   function enhanceVediAnche(container) {
     const headings = container.querySelectorAll("h1,h2,h3,h4,h5,h6");
@@ -1191,7 +1262,7 @@
   nodeOpenBtn.addEventListener("click", () => { if (exploringId) showPage(exploringId); });
   nodeVideoBtn.addEventListener("click", () => {
     const p = exploringId && pagesById[exploringId];
-    if (p && p.video) window.open(p.video, "_blank", "noopener");
+    if (p && p.video) openVideoModal(p.video);
   });
 
   document.getElementById("graph-reset").addEventListener("click", () => {
