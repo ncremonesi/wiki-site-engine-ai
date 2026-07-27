@@ -15,7 +15,7 @@ def write_page(root: Path, name: str, content: str) -> None:
 
 class EngineTests(unittest.TestCase):
     def test_ui_assets_are_packaged_with_engine(self) -> None:
-        required = {"index.html", "style.css", "app.js", "sw.js", "vis-network.min.js"}
+        required = {"index.html", "style.css", "app.js", "sw.js", "vis-network.min.js", "mermaid.min.js"}
         self.assertEqual(required, {path.name for path in ASSETS_ROOT.iterdir()})
 
     def test_category_from_parent_and_field_mapping(self) -> None:

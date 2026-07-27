@@ -477,11 +477,16 @@
       const line = lines[i];
 
       if (/^```/.test(line)) {
+        const lang = line.replace(/^```\s*/, "").trim();
         const code = [];
         i++;
         while (i < lines.length && !/^```/.test(lines[i])) { code.push(lines[i]); i++; }
         i++;
-        out.push("<pre><code>" + code.join("\n") + "</code></pre>");
+        if (lang === "mermaid") {
+          out.push('<div class="mermaid-diagram" title="Apri a schermo intero"><pre class="mermaid">' + code.join("\n") + "</pre></div>");
+        } else {
+          out.push("<pre><code>" + code.join("\n") + "</code></pre>");
+        }
         continue;
       }
 
@@ -701,6 +706,7 @@
       : "";
     panelBody.innerHTML = videoBtnHtml + renderMarkdown(page.markdown || "") + relatedPagesHtml(page);
     enhanceVediAnche(panelBody);
+    renderMermaidDiagrams(panelBody);
     if (!jumpQuery || !jumpToMatch(jumpQuery)) panelEl.scrollTop = 0;
     buildPanelToc();
     focusNode(id);
@@ -803,6 +809,54 @@
   document.addEventListener("click", (e) => {
     if (!panelToc.classList.contains("hidden") && !panelToc.contains(e.target) && e.target !== panelTocBtn) closePanelToc();
   });
+
+  // --- mermaid diagrams: render inline, click through to a fullscreen view ---
+  if (window.mermaid) {
+    const prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+    mermaid.initialize({ startOnLoad: false, theme: prefersLight ? "default" : "dark", securityLevel: "strict" });
+  }
+
+  const mermaidModal = document.getElementById("mermaid-modal");
+  const mermaidModalBody = document.getElementById("mermaid-modal-body");
+
+  function closeMermaidModal() {
+    mermaidModal.classList.add("hidden");
+    mermaidModalBody.innerHTML = "";
+  }
+
+  function openMermaidModal(svgEl) {
+    const clone = svgEl.cloneNode(true);
+    clone.removeAttribute("width");
+    clone.removeAttribute("height");
+    clone.style.width = "100%";
+    clone.style.height = "auto";
+    mermaidModalBody.innerHTML = "";
+    mermaidModalBody.appendChild(clone);
+    mermaidModal.classList.remove("hidden");
+  }
+
+  if (mermaidModal) {
+    mermaidModal.addEventListener("click", closeMermaidModal);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !mermaidModal.classList.contains("hidden")) closeMermaidModal();
+    });
+    document.addEventListener("click", (e) => {
+      const wrap = e.target.closest(".mermaid-diagram");
+      if (!wrap) return;
+      const svg = wrap.querySelector("svg");
+      if (svg) openMermaidModal(svg);
+    });
+  }
+
+  // renders any ```mermaid fences turned into .mermaid <pre> placeholders by
+  // renderMarkdown() - safe to call repeatedly, mermaid marks nodes it has
+  // already processed so re-running on unrelated content is a no-op
+  function renderMermaidDiagrams(container) {
+    if (!window.mermaid) return;
+    const nodes = container.querySelectorAll(".mermaid-diagram > .mermaid");
+    if (!nodes.length) return;
+    mermaid.run({ nodes: Array.from(nodes) }).catch((err) => console.error("mermaid render failed", err));
+  }
 
   // "Vedi anche" -> clickable card grid
   function enhanceVediAnche(container) {

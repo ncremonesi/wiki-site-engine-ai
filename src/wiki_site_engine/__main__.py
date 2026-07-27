@@ -38,6 +38,7 @@ def render_ui(config) -> None:
     (output_dir / "style.css").write_text(css, encoding="utf-8")
     shutil.copy2(assets / "app.js", output_dir / "app.js")
     shutil.copy2(assets / "vis-network.min.js", output_dir / "vis-network.min.js")
+    shutil.copy2(assets / "mermaid.min.js", output_dir / "mermaid.min.js")
     logo_path = config.ui.get("logo_path")
     if logo_path:
         source = config.root / logo_path
@@ -60,7 +61,7 @@ def render_ui(config) -> None:
         "icons": icons,
     }
     (output_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    core_assets = ["./", "./index.html", "./style.css", "./app.js", "./app-data.js", "./vis-network.min.js", "./manifest.json", "./" + config.ui.get("logo_name", "logo.png")]
+    core_assets = ["./", "./index.html", "./style.css", "./app.js", "./app-data.js", "./vis-network.min.js", "./mermaid.min.js", "./manifest.json", "./" + config.ui.get("logo_name", "logo.png")]
     core_assets.extend("./" + Path(item).name for item in config.ui.get("static_assets", []))
     sw = (assets / "sw.js").read_text(encoding="utf-8")
     sw = sw.replace("{{CACHE_NAME}}", config.ui.get("cache_name", "wiki-site-v1"))
