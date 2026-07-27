@@ -618,6 +618,11 @@
   let reopenListOnClose = false;
   function syncPanelHistory(id) {
     if (!panelHistoryPushed) {
+      // if the page was loaded directly with this hash (deep link / refresh with a
+      // panel open), the current history entry already carries it - pushing another
+      // copy on top means closePanel()'s history.back() lands on a twin entry with
+      // the same hash still in the URL, so a later page refresh reopens the panel
+      if (decodeURIComponent(location.hash.slice(1)) === id) return;
       history.pushState({ sitePanel: true }, "", "#" + id);
       panelHistoryPushed = true;
     } else {
@@ -1581,12 +1586,17 @@
     const isOpen = listPanelEl.classList.toggle("list-open");
     setListToggleIcon(isOpen);
     if (isOpen) applyFilters();
+    // switching graph into view: any fit computed while it was display:none (including
+    // the initial stabilization fit, since list-open is the default landing view) sized
+    // itself against a zero-width box - re-fit now that it's visible for real. This used
+    // to defer to requestAnimationFrame to "wait for layout", but removing display:none
+    // applies layout synchronously (clientWidth already reads correctly right above), and
+    // rAF is throttled/paused while the tab isn't actively compositing (e.g. backgrounded),
+    // which could silently drop this re-fit entirely - run it synchronously instead.
     if (!isOpen && graphReady) {
-      requestAnimationFrame(() => {
-        applyLayoutForContainer();
-        network.fit({ animation: false });
-        basePositions = network.getPositions();
-      });
+      applyLayoutForContainer();
+      network.fit({ animation: false });
+      basePositions = network.getPositions();
     }
   });
 
