@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from wiki_site_engine.__main__ import ASSETS_ROOT
+from wiki_site_engine.__main__ import ASSETS_ROOT, comparison, is_regression, load_existing
 from wiki_site_engine import EngineConfig, build_payload
 from wiki_site_engine.config import ValidationRule
 
@@ -174,6 +174,40 @@ aggiornato: 2026-07-17
             self.assertEqual(page["ordine"], 3)
             self.assertEqual(page["category"], "speciale")
             self.assertEqual(payload["stats"]["videos"], 1)
+
+
+    def test_regression_guard_flags_drops_and_ignores_growth(self) -> None:
+        old = {"stats": {"pages": 10, "counts": {"a": 3, "b": 2}}, "pages": [{"id": "x"}, {"id": "y"}]}
+
+        grown = {"stats": {"pages": 11, "counts": {"a": 3, "b": 4}}, "pages": [{"id": "x"}, {"id": "y"}, {"id": "z"}]}
+        diff = comparison(old, grown)
+        self.assertFalse(any(item["regression"] for item in diff.values()))
+        self.assertEqual(diff["pageIds"]["added"], ["z"])
+
+        shrunk = {"stats": {"pages": 9, "counts": {"a": 3, "b": 2}}, "pages": [{"id": "x"}]}
+        diff = comparison(old, shrunk)
+        self.assertTrue(diff["pages"]["regression"])
+        self.assertTrue(diff["pageIds"]["regression"])
+        self.assertEqual(diff["pageIds"]["missing"], ["y"])
+
+        # a key that disappears from a counts dict is a drop, not a neutral change
+        dropped_key = {"stats": {"pages": 10, "counts": {"a": 3}}, "pages": old["pages"]}
+        self.assertTrue(comparison(old, dropped_key)["counts"]["regression"])
+
+        # non-numeric stats are not comparable and must not be guarded
+        self.assertFalse(is_regression("Corsi", ""))
+        self.assertFalse(is_regression(True, False))
+
+    def test_load_existing_round_trip_and_rejects_foreign_content(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "app-data.js"
+            path.write_text('window.MY_DATA = {"stats": {"pages": 2}};\n', encoding="utf-8")
+            self.assertEqual(load_existing(path, "MY_DATA"), {"stats": {"pages": 2}})
+            # wrong variable name, truncated file or missing file: no comparison, no crash
+            self.assertIsNone(load_existing(path, "OTHER_DATA"))
+            path.write_text("window.MY_DATA = {broken;\n", encoding="utf-8")
+            self.assertIsNone(load_existing(path, "MY_DATA"))
+            self.assertIsNone(load_existing(Path(directory) / "assente.js", "MY_DATA"))
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import sys
 from pathlib import Path
 
 from .builder import build_payload
@@ -69,11 +70,81 @@ def render_ui(config) -> None:
     (output_dir / "sw.js").write_text(sw, encoding="utf-8")
 
 
+def load_existing(path: Path, data_variable: str) -> dict | None:
+    """Rilegge un app-data.js generato in precedenza; None se assente o illeggibile."""
+    if not path.exists():
+        return None
+    text = path.read_text(encoding="utf-8")
+    prefix, suffix = f"window.{data_variable} = ", ";\n"
+    if not text.startswith(prefix) or not text.endswith(suffix):
+        return None
+    try:
+        return json.loads(text[len(prefix):-len(suffix)])
+    except json.JSONDecodeError:
+        return None
+
+
+def is_regression(old_value, new_value) -> bool:
+    """Un calo di copertura e' sospetto (sorgenti non sincronizzate, pagine perse); la crescita no."""
+    if isinstance(old_value, dict):
+        new_value = new_value or {}
+        return any(new_value.get(key, 0) < value for key, value in old_value.items())
+    if isinstance(old_value, bool):
+        return False
+    if isinstance(old_value, (int, float)):
+        return (new_value or 0) < old_value
+    return False
+
+
+def comparison(old: dict, new: dict) -> dict:
+    """Confronta ogni statistica numerica pubblicata dal dominio, piu' gli id delle pagine.
+
+    Volutamente generico: ogni sito ha le sue chiavi (cinture, tipologie, video...) e
+    un elenco fisso qui smetterebbe silenziosamente di sorvegliare quelle aggiunte dopo.
+    """
+    result = {}
+    old_stats, new_stats = old.get("stats", {}), new.get("stats", {})
+    for key in sorted(set(old_stats) | set(new_stats)):
+        old_value, new_value = old_stats.get(key), new_stats.get(key)
+        if isinstance(old_value, bool) or not isinstance(old_value, (int, float, dict)):
+            continue
+        result[key] = {
+            "old": old_value,
+            "new": new_value,
+            "equal": old_value == new_value,
+            "regression": is_regression(old_value, new_value),
+        }
+    old_ids = {page["id"] for page in old.get("pages", [])}
+    new_ids = {page["id"] for page in new.get("pages", [])}
+    missing = sorted(old_ids - new_ids)
+    result["pageIds"] = {
+        "equal": old_ids == new_ids,
+        "missing": missing,
+        "added": sorted(new_ids - old_ids),
+        "regression": bool(missing),
+    }
+    return result
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="wiki-site-engine")
     subparsers = parser.add_subparsers(dest="command", required=True)
     build_parser = subparsers.add_parser("build")
     build_parser.add_argument("--config", type=Path, required=True)
+    build_parser.add_argument(
+        "--check-only",
+        action="store_true",
+        help="Confronta con l'app-data.js esistente senza sostituirlo. Esce 1 se il confronto segnala un calo.",
+    )
+    build_parser.add_argument(
+        "--allow-regression",
+        action="store_true",
+        help=(
+            "Scrivi anche se il confronto segnala un calo. La guardia intercetta i cali "
+            "accidentali; usa questo flag solo quando il calo e' voluto, per esempio una "
+            "correzione della tassonomia."
+        ),
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -83,6 +154,21 @@ def main() -> None:
         source_path = (config.root / source_dir).resolve()
         if output == source_path or output.is_relative_to(source_path):
             raise SystemExit(f"Output non sicuro dentro una cartella sorgente: {output}")
+
+    existing = load_existing(output, config.data_variable)
+    diff = comparison(existing, payload) if existing else None
+    regressed = bool(diff) and any(item.get("regression", False) for item in diff.values())
+
+    if args.check_only:
+        print(json.dumps({"comparison": diff}, ensure_ascii=False, indent=2))
+        raise SystemExit(1 if regressed else 0)
+
+    if regressed:
+        print(json.dumps({"comparison": diff}, ensure_ascii=False, indent=2), file=sys.stderr)
+        if not args.allow_regression:
+            raise SystemExit("Dataset in regressione rispetto al precedente: sostituzione interrotta")
+        print("--allow-regression: calo accettato esplicitamente, procedo", file=sys.stderr)
+
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
         f"window.{config.data_variable} = " + json.dumps(payload, ensure_ascii=False, indent=2) + ";\n",
