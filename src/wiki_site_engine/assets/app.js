@@ -1401,6 +1401,30 @@
     return -1;
   }
 
+  // relevance score for sorting search results: a title/tag hit means the page is
+  // *about* the query, so it outweighs a page that merely mentions the words once in
+  // passing somewhere in the body - bodyMatchIdx (only set when the match came from
+  // plainTextOf, i.e. no title/tag hit) adds a small tie-breaker for how early the
+  // match sits in the document, since an early mention tends to be more central
+  function scoreOf(p, qTokens, bodyMatchIdx) {
+    if (!qTokens.length) return 0;
+    const titleLower = p.title.toLowerCase();
+    const tagsLower = (p.tags || []).join(" ").toLowerCase();
+    let score = 0;
+    const phrase = qTokens.join(" ");
+    if (phrase.length > 2 && titleLower.includes(phrase)) score += 40;
+    qTokens.forEach((t) => {
+      if (titleLower.includes(t)) score += 12;
+      else if (titleLower.includes(tokenStem(t))) score += 7;
+      if (tagsLower.includes(t)) score += 5;
+    });
+    if (typeof bodyMatchIdx === "number" && bodyMatchIdx >= 0) {
+      score += 3;
+      score += Math.max(0, 3 - bodyMatchIdx / 400);
+    }
+    return score;
+  }
+
   function applyFilters() {
     network.unselectAll();
     resetHighlight();
@@ -1410,17 +1434,19 @@
     const qTokensSignificant = qTokensRaw.filter((t) => t.length > 1 && !SEARCH_STOPWORDS.has(t));
     const qTokens = qTokensSignificant.length ? qTokensSignificant : qTokensRaw;
     const snippets = {};
+    const scores = {};
     const visible = [];
     const categoryFacetCounts = {};
     const nodeUpdates = [];
     DATA.pages.forEach((p) => {
       const hay = (p.title + " " + (p.tags || []).join(" ") + " " + p.category).toLowerCase();
       let textMatch = !q || qTokens.every((t) => tokenMatches(hay, t));
+      let bodyMatchIdx = -1;
       if (!textMatch && q && searchBody) {
         const plain = plainTextOf(p);
         const plainLower = plain.toLowerCase();
-        const matchIdx = proximityMatch(plainLower, qTokens);
-        if (matchIdx !== -1) {
+        bodyMatchIdx = proximityMatch(plainLower, qTokens);
+        if (bodyMatchIdx !== -1) {
           textMatch = true;
           snippets[p.id] = snippetAround(plain, qTokens[0]);
         }
@@ -1428,7 +1454,10 @@
       const categoryMatch = activeCategories.size === 0 || activeCategories.has(p.category);
       const show = textMatch && categoryMatch;
       nodeUpdates.push({ id: p.id, hidden: !show });
-      if (show) visible.push(p);
+      if (show) {
+        visible.push(p);
+        if (q) scores[p.id] = scoreOf(p, qTokens, bodyMatchIdx);
+      }
       if (textMatch) categoryFacetCounts[p.category] = (categoryFacetCounts[p.category] || 0) + 1;
     });
     nodes.update(nodeUpdates);
@@ -1456,6 +1485,20 @@
     visible.forEach((p) => { (groups[p.category] = groups[p.category] || []).push(p); });
     const groupNames = Object.keys(groups).sort();
 
+    // with an active query, favour relevance over the alphabet, and open enough of
+    // the results that a query narrow enough to matter doesn't still require hunting
+    // through collapsed accordions - a query that stays broad (many hits) still opens
+    // at least the single best-scoring group, so something relevant is always visible
+    const AUTO_OPEN_MAX = 12;
+    let topGroupKey = null;
+    if (q && visible.length > AUTO_OPEN_MAX) {
+      let best = -Infinity;
+      visible.forEach((p) => {
+        const s = scores[p.id] || 0;
+        if (s > best) { best = s; topGroupKey = p.category; }
+      });
+    }
+
     const pageItem = (p) => {
       const snippet = snippets[p.id];
       return (
@@ -1467,7 +1510,10 @@
     };
 
     const renderGroup = (cat, label, items, itemHtml) => {
-      const wasOpen = groupOpenState[cat];
+      const wasOpen =
+        groupOpenState[cat] ||
+        (!!q && visible.length > 0 && visible.length <= AUTO_OPEN_MAX) ||
+        cat === topGroupKey;
       const itemsHtml = items.map(itemHtml).join("");
       return (
         '<details class="cat-group"' + (wasOpen ? " open" : "") + ' data-cat="' + escapeHtml(cat) + '">' +
@@ -1507,7 +1553,10 @@
     const cardsHtml = [];
 
     groupNames.forEach((cat) => {
-      cardsHtml.push(renderGroup(cat, cat, groups[cat].slice().sort((a, b) => a.title.localeCompare(b.title)), pageItem));
+      const sorted = groups[cat].slice().sort((a, b) =>
+        q ? (scores[b.id] || 0) - (scores[a.id] || 0) || a.title.localeCompare(b.title) : a.title.localeCompare(b.title)
+      );
+      cardsHtml.push(renderGroup(cat, cat, sorted, pageItem));
     });
 
     const CARD_MIN_WIDTH = 340;
@@ -1585,6 +1634,7 @@
   listToggleBtn.addEventListener("click", () => {
     const isOpen = listPanelEl.classList.toggle("list-open");
     setListToggleIcon(isOpen);
+    relocateLegend();
     if (isOpen) applyFilters();
     // switching graph into view: any fit computed while it was display:none (including
     // the initial stabilization fit, since list-open is the default landing view) sized
@@ -1686,8 +1736,14 @@
   legendAccordion.appendChild(legendSummary);
 
   const filtersSectionEl = document.getElementById("filters-section");
+  // the floating desktop placement only makes sense while the graph is actually
+  // visible - #list-panel.list-open sets #graph-wrap to display:none (and list is
+  // the default landing view), so leaving the legend parented there by viewport
+  // width alone made it vanish for every desktop user until they switched to
+  // "Grafo": follow the current view, not just the screen size
   function relocateLegend() {
-    if (mobileMq.matches) {
+    const inListView = listPanelEl.classList.contains("list-open");
+    if (mobileMq.matches || inListView) {
       listPanelEl.insertBefore(statsEl, listPanelEl.firstChild);
       legendAccordion.appendChild(legendEl);
       filtersSectionEl.appendChild(legendAccordion);
