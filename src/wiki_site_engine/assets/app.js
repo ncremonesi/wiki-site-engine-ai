@@ -1740,15 +1740,19 @@
   // visible - #list-panel.list-open sets #graph-wrap to display:none (and list is
   // the default landing view), so leaving the legend parented there by viewport
   // width alone made it vanish for every desktop user until they switched to
-  // "Grafo": follow the current view, not just the screen size
+  // "Grafo": follow the current view. The stats badge is different: on every
+  // non-mobile viewport it stays in the topbar, regardless of graph/list view.
   function relocateLegend() {
     const inListView = listPanelEl.classList.contains("list-open");
-    if (mobileMq.matches || inListView) {
+    if (mobileMq.matches) {
       listPanelEl.insertBefore(statsEl, listPanelEl.firstChild);
+    } else {
+      topbarEl.appendChild(statsEl);
+    }
+    if (mobileMq.matches || inListView) {
       legendAccordion.appendChild(legendEl);
       filtersSectionEl.appendChild(legendAccordion);
     } else {
-      topbarEl.appendChild(statsEl);
       graphWrapEl.insertBefore(legendEl, graphTooltip);
       legendAccordion.remove();
     }

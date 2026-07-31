@@ -761,9 +761,22 @@ main { display: flex; flex: 1 1 auto; min-height: 0; }
 
 /* --- print: single note, everything else hidden --- */
 @media print {
-  @page { margin: 16mm 15mm; }
-  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  html, body { overflow: visible !important; background: #fff !important; }
+  @page {
+    margin: 16mm 15mm 20mm;
+    @bottom-center {
+      content: counter(page) " / " counter(pages);
+      color: #706b7a;
+      font: 9px/1.2 system-ui, sans-serif;
+    }
+  }
+  html, body {
+    overflow: visible !important;
+    background: #fff !important;
+    color: #25232a !important;
+    color-scheme: light !important;
+    -webkit-print-color-adjust: economy !important;
+    print-color-adjust: economy !important;
+  }
   * { scrollbar-width: none !important; }
   *::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
   body * { visibility: hidden; }
@@ -775,21 +788,24 @@ main { display: flex; flex: 1 1 auto; min-height: 0; }
   body[data-print-target="panel"] #panel {
     position: absolute; top: 0; left: 0; transform: none;
     width: 100%; max-width: 100%; max-height: none; height: auto; overflow: visible;
-    background: #fff; color: #1a1a1a; box-shadow: none; border: none; padding: 0;
+    background: #fff; color: #25232a; color-scheme: light;
+    --bg: #fff; --panel-bg: #fff; --text: #25232a; --muted: #686372;
+    --border: #d5d1dc; --accent: #5b4cc4;
+    box-shadow: none; border: none; padding: 0;
   }
   body[data-print-target="panel"] #panel-toolbar { display: none !important; }
 
   .print-header {
     display: flex !important; align-items: center; gap: 12px;
-    padding-bottom: 12px; margin-bottom: 20px; border-bottom: 2px solid #6a5bd8;
+    padding-bottom: 12px; margin-bottom: 20px; border-bottom: 1.5px solid #5b4cc4;
   }
-  .print-header img { height: 34px; width: auto; }
+  .print-header img { height: 42px; width: auto; }
   .print-header strong { display: block; font-size: 15px; color: #16181c; }
   .print-header span { display: block; font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: #6a5bd8; }
 
   #panel-meta, #panel-body { color: #1a1a1a; max-width: 100%; }
-  #panel-meta { background: #f6f4fb; border: 1px solid #ddd8ee; border-left: 4px solid #6a5bd8; }
-  .correlato-card { background: #f6f4fb; border: 1px solid #ddd8ee; }
+  #panel-meta { background: #f7f6fa; border: 1px solid #ddd9e4; border-left: 4px solid #5b4cc4; }
+  .correlato-card { background: #fff; border: 1px solid #d5d1dc; }
   .correlato-title { color: #1a1a1a; }
   .correlato-cat, .correlato-excerpt { color: #55524f; }
   #panel-meta h2 { color: #6a5bd8 !important; }
@@ -799,11 +815,31 @@ main { display: flex; flex: 1 1 auto; min-height: 0; }
   #panel-body blockquote, #panel-body table, #panel-body pre { break-inside: avoid; page-break-inside: avoid; }
   #panel-body a, a.wikilink { color: #4b3fa8 !important; text-decoration: underline !important; }
   #panel-body code, #panel-body pre { background: #f2f2f2; color: #1a1a1a; }
-  #panel-body blockquote { background: #f6f4fb; border-left: 3px solid #6a5bd8; color: #4a4a4a !important; }
+  #panel-body blockquote { background: #f7f6fa; border-left: 3px solid #5b4cc4; color: #4a4a4a !important; }
   #panel-body table, #panel-body th, #panel-body td { border-color: #ccc; }
   #panel-body th { background: #ece7f8; color: #4b3fa8 !important; }
   .meta-row, .tag-chip { color: #555 !important; }
   .tag-chip { background: #fff; border: 1px solid #cfc7ea; }
+  .related-pages {
+    margin-top: 24px; padding-top: 12px;
+    border-top: 1px solid #aaa5b2; background: #fff !important;
+  }
+  .related-pages h3 { margin: 0 0 9px; font-size: 13px; }
+  .related-group, .related-group[open] {
+    background: #fff !important; border: 0 !important; box-shadow: none !important;
+  }
+  summary.related-label {
+    color: #5d5867 !important; background: #fff !important;
+    padding: 4px 0 !important; font-size: 9px; letter-spacing: .06em;
+  }
+  summary.related-label::after { display: none !important; }
+  .related-count { color: #746f7d !important; background: transparent !important; border: 0 !important; }
+  .related-chips, .colleg-chips { gap: 4px !important; }
+  .related-chip, .colleg-chips .related-chip {
+    color: #403872 !important; background: #fff !important;
+    border: 1px solid #c9c3d5 !important; border-radius: 3px !important;
+    box-shadow: none !important; padding: 3px 6px !important; text-decoration: none !important;
+  }
   mark { background: #ffe38a; color: #000; }
 }
 
