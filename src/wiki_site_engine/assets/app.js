@@ -1193,7 +1193,24 @@
         panelCopy.title = "Copia link";
       }, 1600);
     };
-    navigator.clipboard.writeText(url).then(() => showFeedback(true), () => showFeedback(false));
+    const legacyCopy = () => {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch (err) { ok = false; }
+      document.body.removeChild(ta);
+      showFeedback(ok);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => showFeedback(true), legacyCopy);
+    } else {
+      legacyCopy();
+    }
   });
 
   document.addEventListener("keydown", (e) => {
