@@ -212,3 +212,61 @@ aggiornato: 2026-07-17
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FreshnessTests(unittest.TestCase):
+    def test_effective_updated_takes_most_recent(self) -> None:
+        from wiki_site_engine.freshness import effective_updated
+
+        dates = {"a.md": "2026-10-13"}
+        self.assertEqual(effective_updated("2026-10-12", "a.md", dates), "2026-10-13")
+        self.assertEqual(effective_updated("2026-10-20", "a.md", dates), "2026-10-20")
+        self.assertEqual(effective_updated("", "a.md", dates), "2026-10-13")
+        self.assertEqual(effective_updated("2026-10-12", "b.md", dates), "2026-10-12")
+
+    def test_git_dates_reads_commits_and_dirty_files(self) -> None:
+        import subprocess
+
+        from wiki_site_engine.freshness import git_dates
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            def git(*args: str, env_date: str | None = None) -> None:
+                env = None
+                if env_date:
+                    import os
+
+                    env = {**os.environ, "GIT_COMMITTER_DATE": env_date, "GIT_AUTHOR_DATE": env_date}
+                subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, env=env)
+
+            git("init", "-q")
+            git("config", "user.email", "t@example.org")
+            git("config", "user.name", "t")
+            (root / "old.md").write_text("# Old\n", encoding="utf-8")
+            git("add", "-A")
+            git("commit", "-q", "-m", "one", env_date="2026-01-05T12:00:00")
+            (root / "new.md").write_text("# New\n", encoding="utf-8")
+            git("add", "-A")
+            git("commit", "-q", "-m", "two", env_date="2026-03-09T12:00:00")
+            (root / "old.md").write_text("# Old\n\nmodifica\n", encoding="utf-8")
+
+            dates = git_dates(root)
+            self.assertEqual(dates["new.md"], "2026-03-09")
+            self.assertGreaterEqual(dates["old.md"], "2026-03-09")  # modificata e non committata
+
+    def test_build_uses_git_date_when_newer_than_frontmatter(self) -> None:
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_page(root, "alpha.md", "---\ntipo: concetto\naggiornato: 2020-01-01\n---\n# Alpha\n")
+            subprocess.run(["git", "-C", str(root), "init", "-q"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "t@example.org"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-q", "-m", "x"], check=True, capture_output=True)
+            on = build_payload(EngineConfig(root=root, source_dirs=("wiki",)))
+            off = build_payload(EngineConfig(root=root, source_dirs=("wiki",), updated_from_git=False))
+            self.assertGreater(on["pages"][0]["updated"], "2020-01-01")
+            self.assertEqual(off["pages"][0]["updated"], "2020-01-01")

@@ -25,3 +25,9 @@ python -m wiki_site_engine build --config site-engine.json
 Il collegamento ai progetti reali verrà introdotto soltanto dopo il test pilota su
 `crescita-personale-ai`.
 
+
+## Data di aggiornamento delle pagine
+
+Il campo `updated` di ogni pagina (usato da «Aggiornate di recente» e dall'ordinamento «Più recenti») è la data **più recente** tra il campo di frontmatter `updated_field` (default `aggiornato`) e l'ultima modifica registrata da git: data dell'ultimo commit che ha toccato il file, oppure data del file se ha modifiche non committate. Così una nota riscritta senza ritoccare `aggiornato` sale comunque tra le più recenti, in modo uguale su tutti i siti.
+
+Per usare solo il frontmatter, impostare `"updated_from_git": false` nel file di configurazione. Se il vault non è un repository git, vale solo il frontmatter.

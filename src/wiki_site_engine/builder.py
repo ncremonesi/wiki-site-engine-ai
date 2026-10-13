@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 
 from .config import EngineConfig
+from .freshness import effective_updated, git_dates
 from .markdown import excerpt, first_heading, normalize_markdown, parse_frontmatter, wikilinks
 
 
@@ -45,6 +46,8 @@ def build_payload(config: EngineConfig) -> dict:
         if folder.exists():
             files.extend(sorted(folder.rglob("*.md")))
 
+    git_map = git_dates(config.root) if config.updated_from_git else {}
+
     for path in files:
         relative = _relative(path, config.root)
         if relative in excluded:
@@ -61,7 +64,7 @@ def build_payload(config: EngineConfig) -> dict:
             "path": relative,
             "folder": path.parent.relative_to(config.root).as_posix(),
             "category": category,
-            "updated": frontmatter.get(config.updated_field, ""),
+            "updated": effective_updated(frontmatter.get(config.updated_field, ""), relative, git_map),
             "publication": frontmatter.get(config.publication_field, "pubblico"),
             "metadata": frontmatter,
             "excerpt": excerpt(body),

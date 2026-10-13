@@ -34,6 +34,7 @@ class EngineConfig:
     page_overrides: dict = field(default_factory=dict)
     title_field: str = "titolo"
     updated_field: str = "aggiornato"
+    updated_from_git: bool = True
     publication_field: str = "pubblicazione"
     publication_excluded_value: str = "escluso"
     validation: ValidationRule = field(default_factory=ValidationRule)
@@ -70,6 +71,7 @@ def load_config(path: Path) -> EngineConfig:
         page_overrides=dict(raw.get("page_overrides", {})),
         title_field=raw.get("title_field", "titolo"),
         updated_field=raw.get("updated_field", "aggiornato"),
+        updated_from_git=raw.get("updated_from_git", True),
         publication_field=raw.get("publication_field", "pubblicazione"),
         publication_excluded_value=raw.get("publication_excluded_value", "escluso"),
         validation=validation,
